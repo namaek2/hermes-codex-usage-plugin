@@ -7,7 +7,7 @@ A Hermes Desktop plugin for provider allowances and observed conversation usage,
 This Git installation is an unreviewed beta, separate from the existing upstream catalog entry. It requires Hermes **0.23.1 or newer**. Git installation checks out the branch tip at install time; only `--ref` with a full 40-character commit SHA selects an immutable revision.
 
 ```sh
-hermes plugins install namaek2/hermes-limits-monitor --enable
+hermes plugins install namaek2/hermes-codex-usage-plugin --enable
 ```
 
 Then check **Agent** and **Desktop** toggles separately under **Capabilities → Plugins**. UI enablement is not universal or automatic. Since this fork and upstream use the same plugin ID, they cannot coexist in one Hermes installation. Do not force-overwrite a different source. Disable or remove through Hermes:
