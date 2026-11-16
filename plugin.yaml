@@ -1,6 +1,12 @@
 name: limits-monitor
-version: "0.1.0"
-label: Limits
-description: Privacy-first desktop panel for provider allowance data exposed by Hermes
-requires_hermes: ">=0.22.5"
+version: "0.2.0-beta.1"
+label: Limits · Beta
+description: Provider allowances and observed conversation usage, with verified stale Codex cooldown recovery
+requires_hermes: ">=0.23.1"
 tags: [desktop, usage, privacy]
+provides_hooks:
+  - pre_api_request
+  - post_api_request
+  - api_request_error
+  - subagent_start
+  - on_session_reset

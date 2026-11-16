@@ -1,0 +1,9 @@
+{
+  "name": "limits-monitor",
+  "label": "Limits · Beta",
+  "version": "0.2.0-beta.1",
+  "description": "Provider allowances, observed conversation usage, and verified stale Codex cooldown recovery",
+  "entry": "",
+  "tab": { "hidden": true },
+  "api": "plugin_api.py"
+}

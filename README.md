@@ -1,56 +1,77 @@
 # Hermes Limits Monitor
 
-A desktop-only Hermes plugin that displays provider allowance windows exposed through Hermes. It discovers reachable profiles automatically and shows only quota fields Hermes actually provides; provider coverage and reset information vary.
+A Hermes Desktop plugin for provider allowances and observed conversation usage, with guarded stale Codex cooldown recovery. This independent beta fork preserves the `limits-monitor` plugin ID. It replaces the upstream catalog edition rather than installing alongside it. The code is based on upstream [`zzhan1q/hermes-limits-monitor`](https://github.com/zzhan1q/hermes-limits-monitor) at commit `bd6810701442e2b2a91a4be2ea9811a88e1236aa`; original MIT copyright and attribution are retained.
+
+## Beta installation
+
+This Git installation is an unreviewed beta, separate from the existing upstream catalog entry. It requires Hermes **0.23.1 or newer**. Git installation checks out the branch tip at install time; only `--ref` with a full 40-character commit SHA selects an immutable revision.
+
+```sh
+hermes plugins install namaek2/hermes-limits-monitor --enable
+```
+
+Then check **Agent** and **Desktop** toggles separately under **Capabilities → Plugins**. UI enablement is not universal or automatic. Since this fork and upstream use the same plugin ID, they cannot coexist in one Hermes installation. Do not force-overwrite a different source. Disable or remove through Hermes:
+
+```sh
+hermes plugins disable limits-monitor
+hermes plugins remove limits-monitor
+```
+
+Uninstalling the plugin and deleting its separately retained local plugin data are distinct actions. Data is retained unless deliberately deleted; back it up before any deliberate deletion. The plugin does not automatically clean it up.
+
+## What it does
+
+- Shows account-separated provider allowances and reset details from Hermes catalog data. Provider coverage and reset information vary; unavailable values stay unavailable. The compact chip shows the smallest remaining account-scope window, without adding accounts together.
+- The chip's selected account does **not** identify the credential used by the focused chat. Unknown or stale values are unavailable, never zero.
+- Shows observed conversation usage totals and subtotals collected after activation. Account quota/allocation and per-chat quota usage are **not measured**; no quota percentage is inferred for a conversation. No history is backfilled; auxiliary/external calls are excluded and explicit conversation IDs may be needed to join continuations.
+- Optionally repairs a narrowly verified stale Codex cooldown for the local/default profile only, while enabled, mounted, and connected. It does not scan arbitrary sibling or remote profiles. The backend reads the owner profile's Codex credential pool through **private Hermes helpers**, makes authenticated native provider usage requests, and can clear verified stale account-status fields under a lock and compare-and-swap check. It preserves tokens, other account rows, priorities, and model cooldowns. It does not refresh OAuth, log in, redeem quota, or issue inference requests. Query/catalog refresh is not a forced provider or token refresh; HTTP 401 requires native reauthentication.
+
+The renderer does not read session transcripts or credential files. The recovery backend does access credentials as described above; this plugin does not claim to have no credential access. The collector stores identifiers, numeric usage, and bounded relationship metadata only—not conversation bodies, credentials, raw account IDs, or URLs. Its local database is `<profile-home>/plugin-data/limits-monitor/usage.db`; retention is indefinite until deliberate deletion. Disable both the Agent and Desktop halves before a deliberate backup or deletion. Plugin removal is not permission to lose this data. The collector does not include auxiliary/external calls, backfill history, or attribute quota percentages to conversations.
+
+There is no daemon, cron job, telemetry, or automatic cleanup. The beta has not received upstream catalog approval or a security audit. Actual installation/runtime verification so far is Linux-only; other platforms are unverified. Plugin validation may flag private Hermes helper imports, and Hermes changes may require adapting recovery. Failed checks leave existing limits unchanged.
+
+## Development and optional UI harness
+
+Requires Node.js 22 or newer and an already-installed Hermes Python environment for backend tests; backend dependencies are not bundled. Frontend and backend tests use synthetic data and isolated stores; these commands are for maintainers:
+
+```sh
+npm ci --ignore-scripts --no-audit --no-fund
+npm test
+node --check desktop/plugin.js
+python -m unittest discover -s tests -p 'test_reconcile.py' -v
+```
+
+The optional browser harness uses an isolated scratch Hermes home, already-installed Hermes Desktop dependencies, and already-installed Playwright/Chromium; none of these are bundled or installed by this repository. Set `USAGE_UI_BROWSER` only to select a specific installed browser executable.
+
+Terminal 1:
+
+```sh
+SCRATCH="${TMPDIR:-/tmp}/limits-usage-ui"
+mkdir -p "$SCRATCH/home" "$SCRATCH/hermes" "$SCRATCH/tmp"
+HOME="$SCRATCH/home" HERMES_HOME="$SCRATCH/hermes" TMPDIR="$SCRATCH/tmp" python tests/usage_ui_harness/server.py
+```
+
+Terminal 2 (set the variable to the installed Hermes Desktop `node_modules` directory):
+
+```sh
+export HERMES_DESKTOP_NODE_MODULES="/path/to/hermes-desktop/node_modules"
+USAGE_BRIDGE=http://127.0.0.1:<bridge-port> \
+node "$HERMES_DESKTOP_NODE_MODULES/vite/bin/vite.js" --config tests/usage_ui_harness/vite.config.mjs --port 5173 --strictPort
+```
+
+Open `http://127.0.0.1:5173`, or run the browser checks in another terminal:
+
+```sh
+USAGE_UI_URL=http://127.0.0.1:5173 python tests/usage_ui_harness/browser_qa.py
+USAGE_UI_URL=http://127.0.0.1:5173 python tests/usage_ui_harness/current_chat_qa.py
+```
 
 ## Screenshot
 
-![Hermes Limits panel with profile and quota values visible](https://raw.githubusercontent.com/zzhan1q/hermes-limits-monitor/main/screenshots/limits-monitor.png)
+![Upstream Hermes Limits panel](https://raw.githubusercontent.com/zzhan1q/hermes-limits-monitor/main/screenshots/limits-monitor.png)
 
-_Original capture; the profile label, quota percentages, and reset times are visible._
-
-## Install
-
-Once listed in the Hermes catalog, install it with:
-
-```sh
-hermes plugins install limits-monitor
-```
-
-The plugin is enabled by default after installation. For a direct Git install before a catalog listing exists, use `hermes plugins install <repo-url>`. To turn it off later, open **Capabilities → Plugins** in Hermes Desktop and disable **Limits**. Quota data is read only while the pane is visible and Hermes is connected.
-
-## What it reads
-
-- `profiles.list` with `include_sessions: false` to discover profile names.
-- `host.profileRoutes()` and `host.requestProfile(route, 'model.options', { explicit_only: true, include_unconfigured: false })` for routed profiles.
-- `host.request('model.options', ...)` only for the active local profile when no route descriptor is available.
-- Hermes provider catalog allowance fields such as `usage.windows`, `usage.accounts[].windows`, `plan_usage.gauges`, and provider state/limit metadata.
-
-It does **not** read session transcripts or session/subagent lists, OAuth/credential files, API keys, cookies, or chat contents. It does not call vendor usage endpoints directly, log raw responses, or persist plugin-owned data. All queries use Hermes's existing RPC surface. When an accessible profile belongs to a remote connection, its `model.options` request goes to that profile's configured Hermes gateway, which handles its normal backend refresh/cache behavior. The plugin itself sends no telemetry or requests to other destinations. Results remain in the existing in-memory query cache while the app is running.
-
-The panel reports provider allowances, not token counts or chat context size. Missing or invalid fields are shown as unavailable; they are never guessed as zero. Providers that do not expose quota through Hermes may show no data. Different observations are not added together or assumed to share an account unless Hermes itself establishes that relationship.
-
-## Refresh behavior
-
-Reads run only while the pane is visible and the Hermes gateway is connected: two initial attempts five seconds apart, then every two minutes. Hiding or disabling the pane stops the query. Manual refresh requests a new Hermes catalog read, which may still return backend-cached usage.
-
-The interface ships in English and Russian and follows the Hermes app locale. English is the fallback for other locales.
-
-## Development
-
-Requires Node.js 22 or newer. Tests use synthetic data and do not access a live Hermes account:
-
-```sh
-npm ci
-npm test
-node --check desktop/plugin.js
-```
-
-The desktop plugin imports only the public `@hermes/plugin-sdk` surface plus the app's React runtime modules.
+_Upstream screenshot; profile label, quota percentages, and reset times are visible._
 
 ## License
 
-MIT License; see `LICENSE`.
-
-## Current distribution status
-
-This repository is the public source for the plugin. The official Hermes catalog entry is pending review.
+MIT License; see [LICENSE](LICENSE). Original copyright and attribution are retained.
