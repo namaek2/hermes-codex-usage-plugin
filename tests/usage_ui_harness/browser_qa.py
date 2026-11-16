@@ -50,7 +50,7 @@ with sync_playwright() as p:
         page.get_by_role("button", name="Profile B (empty)").click()
         expect(section.get_by_text("관찰된 대화 사용량이 없습니다.")).to_be_visible(timeout=10000)
         assert "synthetic-conversation-a" not in section.inner_text()
-        page.get_by_role("button", name="Profile A").click()
+        page.get_by_role("button", name="Profile A", exact=True).click()
         expect(parent_summary).to_be_visible(timeout=10000)
         open_details_if_closed(parent_summary)
         page.get_by_role("button", name="Connection mismatch").click()
@@ -58,7 +58,7 @@ with sync_playwright() as p:
         assert "synthetic-conversation-a" not in section.inner_text()
         passed("profile isolation and connection mismatch")
 
-        page.get_by_role("button", name="Profile A").click()
+        page.get_by_role("button", name="Profile A", exact=True).click()
         parent_summary = section.locator('details details summary').filter(has_text="synthetic-conversation-a")
         expect(parent_summary).to_be_visible(timeout=10000)
         open_details_if_closed(parent_summary)
