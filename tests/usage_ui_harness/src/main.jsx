@@ -5,9 +5,9 @@ import { host, queryClient, visible, registerLocales } from './sdk.js';
 import './style.css';
 
 const contributions = [];
-const storage = new Map();
+const storage = new Map(Object.entries(JSON.parse(localStorage.getItem('limits-monitor-presentation') || '{}')));
 const ctx = {
-  i18n: { register: registerLocales }, storage: { get:key=>storage.get(key) ?? null, set:(key,value)=>storage.set(key,value) },
+  i18n: { register: registerLocales }, storage: { get:key=>storage.get(key) ?? null, set:(key,value)=>{storage.set(key,value);localStorage.setItem('limits-monitor-presentation',JSON.stringify(Object.fromEntries(storage)));} },
   register: item=>contributions.push(item), setInterval:()=>0, onDispose:()=>{}, rest:async()=>({status:'checked'})
 };
 const root = createRoot(document.getElementById('root'));

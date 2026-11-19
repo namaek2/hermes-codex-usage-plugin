@@ -23,6 +23,7 @@ Uninstalling the plugin and deleting its separately retained local plugin data a
 
 - Shows account-separated provider allowances and reset details from Hermes catalog data. Provider coverage and reset information vary; unavailable values stay unavailable. The compact chip shows the smallest remaining account-scope window, without adding accounts together.
 - The chip's selected account does **not** identify the credential used by the focused chat. Unknown or stale values are unavailable, never zero.
+- The status chip can show remaining quota as a percentage, bar graph, or circular graph. Account-chip visibility is a persisted display preference, not the credential used by a request. Email-like labels are always masked.
 - Shows observed conversation usage totals and subtotals collected after activation. Account quota/allocation and per-chat quota usage are **not measured**; no quota percentage is inferred for a conversation. No history is backfilled; auxiliary/external calls are excluded and explicit conversation IDs may be needed to join continuations.
 - Optionally repairs a narrowly verified stale Codex cooldown for the local/default profile only, while enabled, mounted, and connected. It does not scan arbitrary sibling or remote profiles. The backend reads the owner profile's Codex credential pool through **private Hermes helpers**, makes authenticated native provider usage requests, and can clear verified stale account-status fields under a lock and compare-and-swap check. It preserves tokens, other account rows, priorities, and model cooldowns. It does not refresh OAuth, log in, redeem quota, or issue inference requests. Query/catalog refresh is not a forced provider or token refresh; HTTP 401 requires native reauthentication.
 
@@ -64,6 +65,7 @@ Open `http://127.0.0.1:5173`, or run the browser checks in another terminal:
 ```sh
 USAGE_UI_URL=http://127.0.0.1:5173 python tests/usage_ui_harness/browser_qa.py
 USAGE_UI_URL=http://127.0.0.1:5173 python tests/usage_ui_harness/current_chat_qa.py
+USAGE_UI_URL=http://127.0.0.1:5173 python tests/usage_ui_harness/statusbar_qa.py
 ```
 
 ## Screenshot

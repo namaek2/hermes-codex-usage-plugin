@@ -8,7 +8,7 @@ const always = atom(true);
 const disconnected = atom('');
 const barMounted = atom(0);
 const clock = atom(Date.now());
-const preferences = atom({ hidden: [], maskEmails: true });
+const preferences = atom({ hidden: [], statusBarDisplay: 'percent' });
 const storageError = atom(false);
 let preferenceStorage;
 let recoveryRest;
@@ -21,7 +21,7 @@ const warning = 'var(--ui-warning, var(--ui-accent))';
 const labels = { Session: 'Session limit', Weekly: 'Weekly limit', 'API key quota': 'API key quota', day: 'Day', week: 'Week', month: 'Month', top_tier: 'Top-tier models' };
 const flatLocales = {
   en: {
-    'pane.title': 'Limits', 'pane.heading': 'Account allowances', 'pane.description': 'Provider allowances, not chat context size. Auto-refresh runs every 2 minutes while this pane is visible.',
+    'pane.title': 'Limits', 'pane.heading': 'Account allowances',
     'action.refresh': 'Refresh', 'action.loading': 'Loading…', 'connection.offline': 'Hermes is disconnected. Data may be stale.',
     'status.reading': 'Reading provider data…', 'status.waiting': 'Waiting for Hermes connection…',
     'error.refresh': 'Could not refresh data. Previous values are unverified.', 'error.routes': 'Profile routes unavailable; coverage may be incomplete.',
@@ -37,12 +37,11 @@ const flatLocales = {
     'state.modelScope': 'Applies only to this model family, not the whole account',
     'state.low': 'Low allowance', 'state.exhausted': 'Allowance exhausted', 'state.resetUnknown': 'Reset time unknown',
     'state.resetPassed': 'Reset time passed — refresh', 'state.resetIn': 'Resets in', 'state.unitDay': 'd', 'state.unitHour': 'h', 'state.unitMinute': 'm', 'state.locale': 'en-US',
-    'state.providerPaused': 'Provider paused the plan', 'state.limit': 'Limit', 'state.readAt': 'Catalog read',
-    'state.cached': 'Allowances come from Hermes cache; API does not report snapshot time.',
+    'state.providerPaused': 'Provider paused the plan', 'state.limit': 'Limit',
     'state.allowance': 'allowance remaining', 'state.readError': 'Profile data unavailable'
   },
   ru: {
-    'pane.title': 'Лимиты', 'pane.heading': 'Лимиты аккаунтов', 'pane.description': 'Лимиты провайдеров, не размер контекста чата. Автообновление раз в 2 минуты, пока строка состояния или панель видима.',
+    'pane.title': 'Лимиты', 'pane.heading': 'Лимиты аккаунтов',
     'action.refresh': 'Обновить', 'action.loading': 'Загрузка…', 'connection.offline': 'Нет соединения с Hermes. Данные могут быть устаревшими.',
     'status.reading': 'Читаем данные провайдеров…', 'status.waiting': 'Ожидание соединения с Hermes…',
     'error.refresh': 'Не удалось обновить данные. Предыдущие значения не подтверждены.', 'error.routes': 'Маршруты профилей недоступны; охват может быть неполным.',
@@ -58,8 +57,7 @@ const flatLocales = {
     'state.modelScope': 'Только семейство моделей, не весь аккаунт',
     'state.low': 'Мало остатка', 'state.exhausted': 'Лимит исчерпан', 'state.resetUnknown': 'Время сброса неизвестно',
     'state.resetPassed': 'Время сброса прошло — обновите данные', 'state.resetIn': 'Сброс через', 'state.unitDay': 'д', 'state.unitHour': 'ч', 'state.unitMinute': 'м', 'state.locale': 'ru-RU',
-    'state.providerPaused': 'План приостановлен провайдером', 'state.limit': 'Ограничение', 'state.readAt': 'Каталог прочитан',
-    'state.cached': 'Лимиты — из кеша Hermes; API не сообщает время снимка.',
+    'state.providerPaused': 'План приостановлен провайдером', 'state.limit': 'Ограничение',
     'state.allowance': 'осталось', 'state.readError': 'Данные профиля недоступны'
   }
 };
@@ -75,33 +73,29 @@ function nestMessages(flat) {
   return nested;
 }
 const extraMessages = {
-  'pane.description': 'Account allowances, not chat context. The status bar and pane share one cache; reads run every 2 minutes while either is visible.',
-  'bar.title': 'Account limits', 'bar.empty': 'No pinned accounts', 'bar.pin': 'Show in status bar',
-  'bar.mask': 'Hide email addresses', 'bar.restore': 'Show all accounts', 'bar.offline': 'Offline',
-  'bar.readOnly': 'Accounts are not bound to this chat. On local/default, stale Codex cooldowns are checked every 2 minutes against fresh provider data; no account switching or quota redemption.',
+  'bar.title': 'Account limits', 'bar.empty': 'No accounts selected', 'bar.pin': 'Show in status bar',
   'error.recovery': 'Automatic recovery could not be verified. Existing limits are preserved.',
-  'bar.scope': 'Selected app profile', 'bar.stale': 'Check again', 'bar.unknown': 'Unknown',
-  'bar.limited': 'Limited', 'bar.unavailable': 'Sign-in unavailable',
   'bar.saveError': 'Preferences could not be saved; current choices apply only until reload.'
   , 'usage.heading': 'Conversation reported usage', 'usage.unmeasured': 'Account quota usage: unmeasured',
   'usage.coverage': 'Partial coverage: {dropped} events dropped; {failures} storage failures since this plugin loaded.',
   'usage.reason': 'No request-account or quota-window provenance is available.',
-  'usage.empty': 'No observed conversation usage yet; history is not backfilled.', 'usage.loading': 'Loading conversation usage…',
+  'usage.empty': 'No observed conversation usage yet; history is not backfilled.', 'usage.chatEmpty': 'No usage has been reported for this conversation yet.', 'usage.loading': 'Loading conversation usage…',
   'usage.error': 'Could not refresh conversation usage. Previous results are stale.', 'usage.offline': 'Usage query is unavailable while Hermes is disconnected.',
   'usage.calls': 'Calls', 'usage.success': 'successful', 'usage.failed': 'failed', 'usage.pending': 'pending',
   'usage.reportedCalls': 'complete reported calls', 'usage.unreported': 'usage-unreported', 'usage.total': 'Reported token subtotal',
-  'usage.prompt': 'known prompt', 'usage.output': 'known output', 'usage.provider': 'Providers', 'usage.models': 'Models',
+  'usage.prompt': 'Known input / prompt tokens', 'usage.output': 'Known output tokens', 'usage.provider': 'Providers', 'usage.models': 'Models',
   'usage.started': 'Collection started', 'usage.latest': 'Latest event', 'usage.queried': 'Query time',
   'usage.previous': 'Previous', 'usage.next': 'Next', 'usage.unreportedValue': 'Unreported',
   'usage.interval': 'Observed collection interval (local)', 'usage.rowStart': 'Request start (reported)'
   , 'usage.refresh': 'Refresh usage', 'usage.scope': 'Main-loop API requests only; auxiliary titling/compression/MoA/vision and external CLI are excluded. Continuations may split unless an explicit conversation ID links them; relationship metadata is shown separately and child usage is not added.',
   'usage.refreshing': 'Refreshing; visible values are from the previous read.', 'usage.links': 'Session links (metadata only)',
-  'usage.current': 'Current chat', 'usage.since': 'Collection is since plugin activation.', 'usage.requests': 'Observed requests', 'usage.chatUnknown': 'Current chat identity is unavailable.'
+  'usage.current': 'Usage in this chat', 'usage.explanation': 'Follows the focused conversation.', 'usage.since': 'Partial API usage collected since plugin activation; not subscription quota %.',
+  'usage.requests': 'API requests', 'usage.chatUnknown': 'Focused conversation is unavailable.', 'usage.chatError': 'Could not load usage for this conversation.',
+  'bar.display': 'Display shape', 'bar.percent': 'Percentage', 'bar.graph': 'Bar graph', 'bar.circle': 'Circular graph', 'bar.readAt': 'Last read · Hermes catalog', 'bar.notRead': 'No Hermes catalog read yet.'
 };
 Object.assign(flatLocales.en, extraMessages);
 flatLocales.ko = { ...flatLocales.en,
   'pane.title': '한도', 'pane.heading': '계정별 사용 한도',
-  'pane.description': '대화 컨텍스트가 아닌 계정 한도입니다. 상태바와 패널은 같은 캐시를 쓰며, 둘 중 하나가 보이면 2분마다 조회합니다.',
   'action.refresh': '새로고침', 'action.loading': '조회 중…', 'connection.offline': 'Hermes 연결이 끊겼습니다. 이전 값은 최신 정보가 아닐 수 있습니다.',
   'status.reading': '한도 정보를 읽는 중…', 'status.waiting': 'Hermes 연결 대기 중…',
   'error.refresh': '조회 실패 — 이전 값은 미확인 상태입니다.', 'error.routes': '일부 프로필 경로를 확인하지 못했습니다.',
@@ -118,19 +112,15 @@ flatLocales.ko = { ...flatLocales.en,
   'state.low': '잔여량 20% 이하', 'state.exhausted': '한도 소진', 'state.resetUnknown': '초기화 시각 미제공',
   'state.resetPassed': '초기화 시각 지남 — 새로고침 필요', 'state.resetIn': '초기화까지',
   'state.unitDay': '일', 'state.unitHour': '시간', 'state.unitMinute': '분', 'state.locale': 'ko-KR',
-  'state.providerPaused': '공급자가 요금제를 일시 중지했습니다.', 'state.limit': '제한', 'state.readAt': '캐시 조회 시각',
-  'state.cached': 'Hermes 캐시 값입니다. 공급자 원본의 수집 시각은 API가 알려주지 않습니다.',
+  'state.providerPaused': '공급자가 요금제를 일시 중지했습니다.', 'state.limit': '제한',
   'state.allowance': '남음', 'state.readError': '프로필 정보 확인 불가',
-  'bar.title': '계정 한도', 'bar.empty': '표시할 계정 없음', 'bar.pin': '상태바에 표시',
-  'bar.mask': '이메일 가리기', 'bar.restore': '모든 계정 표시', 'bar.offline': '연결 끊김',
-  'bar.readOnly': '현재 대화의 사용 계정을 뜻하지 않습니다. 로컬/default에서는 2분마다 최신 공급자 응답으로 오래된 Codex 제한만 확인·해제합니다. 계정 전환이나 한도 리셋 크레딧 사용은 하지 않습니다.',
+  'bar.title': '계정 한도', 'bar.empty': '표시 중인 계정 없음', 'bar.pin': '상태바에 표시',
   'error.recovery': '자동 제한 해제를 확인하지 못했습니다. 기존 제한은 유지됩니다.',
-  'bar.scope': '앱에서 선택한 프로필', 'bar.stale': '재확인 필요', 'bar.unknown': '확인 불가',
-  'bar.limited': '제한됨', 'bar.unavailable': '인증 확인', 'bar.saveError': '설정 저장 실패 — 현재 선택은 다시 열 때까지 적용됩니다.'
+  'bar.saveError': '설정 저장 실패 — 현재 선택은 다시 열 때까지 적용됩니다.'
   , 'usage.heading': '대화별 보고된 사용량', 'usage.unmeasured': '계정 한도 사용률: 미측정',
   'usage.coverage': '부분 수집: 플러그인 로드 후 이벤트 {dropped}건 누락, 저장 실패 {failures}건.',
   'usage.reason': '요청별 계정 및 한도 구간 출처 정보가 없어 대화 토큰으로 계정 한도 사용률을 산출할 수 없습니다.',
-  'usage.empty': '관찰된 대화 사용량이 없습니다. 과거 내역을 소급 수집하지 않습니다.', 'usage.loading': '대화 사용량 조회 중…',
+  'usage.empty': '관찰된 대화 사용량이 없습니다. 과거 내역을 소급 수집하지 않습니다.', 'usage.chatEmpty': '이 대화에 보고된 사용량이 아직 없습니다.', 'usage.loading': '대화 사용량 조회 중…',
   'usage.error': '대화 사용량을 새로 조회하지 못했습니다. 이전 결과는 오래된 값입니다.', 'usage.offline': 'Hermes 연결 중에만 사용량을 조회할 수 있습니다.',
   'usage.calls': '요청', 'usage.success': '성공', 'usage.failed': '실패', 'usage.pending': '대기 중',
   'usage.reportedCalls': '사용량 보고 완료', 'usage.unreported': '사용량 미보고', 'usage.total': '보고된 토큰 소계',
@@ -140,7 +130,8 @@ flatLocales.ko = { ...flatLocales.en,
   'usage.interval': '관찰 수집 구간(로컬 시각)', 'usage.rowStart': '요청 시작(보고된 값)'
   , 'usage.refresh': '사용량 새로고침', 'usage.scope': '메인 루프 API 요청만 포함합니다. 보조 제목 생성·압축·MoA·비전 및 외부 CLI는 제외됩니다. 명시적 대화 ID 연결이 없으면 이어진 대화도 분리될 수 있습니다. 관계 메타데이터는 별도로 표시하며 자식 사용량을 부모에 더하지 않습니다.',
   'usage.refreshing': '새로 조회 중입니다. 표시된 값은 이전 조회 결과입니다.', 'usage.links': '세션 연결(메타데이터만)',
-  'usage.current': '현재 대화', 'usage.since': '수집은 플러그인 활성화 이후부터입니다.', 'usage.requests': '관찰된 요청', 'usage.chatUnknown': '현재 대화 식별 정보를 확인할 수 없습니다.'
+  'usage.current': '이 대화의 사용량', 'usage.explanation': '현재 선택된 대화를 따라 표시합니다.', 'usage.since': '플러그인 활성화 이후 수집된 일부 API 사용량이며 구독 한도 %가 아닙니다.', 'usage.requests': 'API 요청 수', 'usage.chatUnknown': '선택된 대화를 확인할 수 없습니다.', 'usage.chatError': '이 대화의 사용량을 불러오지 못했습니다.', 'usage.total': '보고된 토큰 소계', 'usage.prompt': '확인된 입력 / 프롬프트 토큰', 'usage.output': '확인된 출력 토큰',
+  'bar.display': '표시 모양', 'bar.percent': '퍼센트', 'bar.graph': '막대 그래프', 'bar.circle': '원형 그래프', 'bar.readAt': '최근 조회 · Hermes 카탈로그', 'bar.notRead': 'Hermes 카탈로그 조회 기록이 없습니다.'
 };
 const locales = Object.fromEntries(Object.entries(flatLocales).map(([locale, messages]) => [locale, nestMessages({ ...flatLocales.en, ...messages })]));
 
@@ -162,7 +153,7 @@ export function resetInfo(value, now = Date.now(), t) {
 }
 export function normalizePreferences(value) {
   return { hidden: [...new Set(list(value?.hidden).filter(key => typeof key === 'string' && /^[a-f0-9]{64}$/.test(key)))].slice(0, 512),
-    maskEmails: value?.maskEmails !== false };
+    statusBarDisplay: ['percent', 'graph', 'circle'].includes(value?.statusBarDisplay) ? value.statusBarDisplay : 'percent' };
 }
 export function displayLabel(label, maskEmails) {
   return maskEmails ? label.replace(/[^\s@]+@[^\s@]+/g, email => `${email[0]}…@…`) : label;
@@ -180,13 +171,13 @@ export async function accountPins(row, profileKey) {
 }
 export function accountSummary(account, now = Date.now()) {
   const empty = kind => ({ kind, window: null });
-  if (account.stale || (account.readAt && now - account.readAt > 300000)) return empty('stale');
+  if (account.stale || !Number.isFinite(account.readAt) || account.readAt <= 0 || account.readAt > now || now - account.readAt > 300000) return empty('stale');
   if (account.authenticated === false || account.state === 'unavailable') return empty('unavailable');
   if (account.state === 'unknown') return empty('unknown');
   const windows = list(account.windows).filter(w => w.scope === 'account');
   if (windows.some(w => w.resets != null && new Date(w.resets).getTime() <= now)) return empty('stale');
   if (account.state === 'limited') return empty('limited');
-  if (!windows.length || windows.some(w => w.left === null || !Number.isFinite(w.left))) return empty('unknown');
+  if (!windows.length || windows.some(w => w.left === null || !Number.isFinite(w.left) || w.left < 0 || w.left > 100)) return empty('unknown');
   const window = windows.reduce((a, b) => a.left <= b.left ? a : b);
   return { kind: window.left === 0 ? 'exhausted' : window.left <= 20 ? 'low' : 'ready', window };
 }
@@ -358,14 +349,14 @@ function WindowGauge({ window: w, stale, t }) {
   ] });
 }
 function AccountCard({ account, t }) {
-  const prefs = useValue(preferences);
-  const now = useValue(clock);
+  const tick = useValue(clock);
+  const now = Math.max(tick, Date.now());
   const stale = accountSummary(account, now).kind === 'stale';
   const stateKey = { ready: 'state.ready', limited: 'state.limited', unavailable: 'state.unavailable', unknown: 'state.unknown' }[account.state];
   const numbered = /^Account (\d+)$/.exec(account.label);
   const label = numbered ? `${t('label.account')} ${numbered[1]}` : account.label === 'Profile account' ? t('label.profileAccount') : account.label;
   return jsxs('div', { style: { marginTop: 9, paddingTop: 8, borderTop: '1px solid var(--ui-stroke-secondary)' }, children: [
-    jsx('div', { style: { fontWeight: 600, overflowWrap: 'anywhere' }, children: displayLabel(label, prefs.maskEmails) }),
+    jsx('div', { style: { fontWeight: 600, overflowWrap: 'anywhere' }, children: displayLabel(label, true) }),
     jsx('div', { style: subtle, children: `${t('state.observation')}: ${account.profiles.join(', ')}` }),
     stateKey && jsx('div', { style: subtle, children: t(stateKey) }),
     stale && jsx('div', { role: 'status', style: { ...subtle, color: warning }, children: t('state.stale') }),
@@ -477,19 +468,21 @@ function CurrentChatSummary({ open, t }) {
   const transientSession = useValue(state.focusedSessionId || EMPTY_SESSION_ATOM);
   const session = storedSession || transientSession || '';
   const owner = useValue(state.focusedSessionOwner || EMPTY_OWNER_ATOM);
-  const data = query.isError ? null : query.data;
+  const data = query.isError || state.gateway.get() !== 'open' ? null : query.data;
   const row = list(data?.rows).find(item => item.session_id === session || list(item.segment_session_ids).includes(session)) || null;
   const number = value => usageNumber(value, t('state.locale'), t('usage.unreportedValue'));
   return jsxs('section', { style: block, 'data-current-chat-usage': true, children: [
     jsx('strong', { children: t('usage.current') }),
-    jsx('div', { role: 'status', style: subtle, children: t('usage.unmeasured') }),
-    jsx('p', { style: subtle, children: t('usage.since') }),
+    jsx('p', { style: subtle, children: t('usage.explanation') }),
     (!session || !owner?.connectionId || !owner?.profile) && jsx('p', { role: 'status', children: t('usage.chatUnknown') }),
     open && state.gateway.get() !== 'open' && jsx('p', { role: 'status', children: t('usage.offline') }),
-    query.isError && jsx('p', { role: 'status', children: t('usage.chatUnknown') }),
-    query.isPending && query.fetchStatus !== 'idle' && open && jsx('p', { role: 'status', children: t('usage.loading') }),
-    open && session && owner?.connectionId && owner?.profile && !query.isPending && !query.isError && !row && jsx('p', { role: 'status', children: t('usage.empty') }),
-    row && jsxs('p', { style: subtle, children: [`${t('usage.requests')}: ${number(row.calls)} · ${t('usage.total')}: ${number(row.reported_total_tokens)} · ${t('usage.prompt')}: ${number(row.known_prompt_tokens)} · ${t('usage.output')}: ${number(row.known_output_tokens)}`] })
+    query.isError && jsx('p', { role: 'status', children: t('usage.chatError') }),
+    query.isFetching && open && state.gateway.get() === 'open' && !row && jsx('p', { role: 'status', children: t('usage.loading') }),
+    open && state.gateway.get() === 'open' && session && owner?.connectionId && owner?.profile && !query.isPending && !query.isFetching && !query.isError && query.data && !row && jsx('p', { role: 'status', children: t('usage.chatEmpty') }),
+    row && jsxs('div', { 'aria-label': t('usage.current'), style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }, children: [
+      ...[[t('usage.total'), row.reported_total_tokens], [t('usage.requests'), row.calls], [t('usage.prompt'), row.known_prompt_tokens], [t('usage.output'), row.known_output_tokens]].map(([label, value]) => jsxs('div', { key: label, 'data-usage-metric': label, style: { border: '1px solid var(--ui-stroke-secondary)', borderRadius: 6, padding: 8 }, children: [jsx('div', { style: subtle, children: label }), jsx('strong', { children: number(value) })] }))
+    ] }),
+    jsx('p', { style: subtle, children: t('usage.since') })
   ] });
 }
 function UsageSection({ profile, connection, gateway, t, initialOffset = 0 }) {
@@ -545,59 +538,87 @@ function LimitsStatusBar() {
   const { query, profile, connection, gateway, refresh } = useLimitsQuery(true);
   const prefs = useValue(preferences);
   const failedSave = useValue(storageError);
-  const now = useValue(clock);
+  const tick = useValue(clock);
+  const now = Math.max(tick, Date.now());
   const rows = statusRows(query.data, profile, connection);
-  const pinned = rows.filter(row => !prefs.hidden.includes(row.pin));
-  const labelOf = row => displayLabel(row.label === 'Profile account' ? t('label.profileAccount') : row.label, prefs.maskEmails);
+  const labelOf = row => displayLabel(row.label === 'Profile account' ? t('label.profileAccount') : row.label, true);
   const providerOf = row => row.provider === 'openai-codex' ? 'Codex' : row.providerName;
-  const headline = row => {
-    if (gateway !== 'open') return '—';
-    const summary = accountSummary({ ...row, stale: row.stale || query.isError }, now);
-    return ['limited', 'exhausted'].includes(summary.kind) ? 'Limited'
-      : summary.window ? formatLeft(summary.window.left, t('state.locale')) : '—';
+  const summaryOf = row => accountSummary({ ...row, stale: row.stale || query.isError || gateway !== 'open' }, now);
+  const limited = summary => ['limited', 'exhausted'].includes(summary.kind);
+  const headline = summary => limited(summary) ? 'Limited'
+    : summary.window ? formatLeft(summary.window.left, t('state.locale')) : '—';
+  const chip = row => {
+    const summary = summaryOf(row);
+    const prefix = `${providerOf(row)} · ${labelOf(row)}`;
+    const value = headline(summary);
+    const critical = limited(summary) || summary.kind === 'low';
+    const valueNode = ['graph', 'circle'].includes(prefs.statusBarDisplay) && summary.window
+      && Number.isFinite(summary.window.left) && summary.window.left > 0 && !limited(summary)
+      ? (() => {
+          const exact = `${formatLeft(summary.window.left, t('state.locale'))} ${t('state.allowance')}`;
+          const value = summary.window.left;
+          if (prefs.statusBarDisplay === 'circle') return jsxs('svg', { width: 16, height: 16, viewBox: '0 0 16 16',
+            role: 'progressbar', 'aria-label': exact, 'aria-valuemin': 0, 'aria-valuemax': 100,
+            'aria-valuenow': value, 'aria-valuetext': exact, title: exact,
+            style: { display: 'inline-block', flex: 'none', verticalAlign: 'middle' }, children: [
+              jsx('circle', { cx: 8, cy: 8, r: 6, fill: 'none', stroke: 'var(--ui-stroke-secondary)', strokeWidth: 2 }),
+              jsx('circle', { cx: 8, cy: 8, r: 6, fill: 'none', stroke: critical ? warning : 'var(--ui-accent)', strokeWidth: 2,
+                pathLength: 100, strokeDasharray: `${Math.max(value, 1)} 100`, strokeLinecap: 'round', transform: 'rotate(-90 8 8)' })
+            ] });
+          return jsx('span', { role: 'progressbar', 'aria-label': exact, 'aria-valuemin': 0, 'aria-valuemax': 100,
+            'aria-valuenow': value, 'aria-valuetext': exact, title: exact,
+            style: { display: 'inline-block', width: 44, height: 5, borderRadius: 4, verticalAlign: 'middle', background: 'var(--ui-stroke-secondary)', overflow: 'hidden' },
+            children: jsx('span', { style: { display: 'block', width: `${Math.max(1, 44 * value / 100)}px`, height: '100%', borderRadius: 4,
+              background: critical ? warning : 'var(--ui-accent)' } }) });
+        })()
+      : value;
+    return { summary, critical, prefix, value, node: jsxs('span', { key: row.pin || row.key, 'data-limits-account': 'chip',
+      'aria-label': `${prefix} · ${value}`, title: `${prefix} · ${value}`, style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: critical ? warning : 'var(--ui-text-primary)' },
+      children: [prefix, ' · ', valueNode] }) };
   };
+  const pinned = rows.filter(row => !prefs.hidden.includes(row.pin));
+  const chipInfo = pinned.map(row => ({ row, ...chip(row) }));
   return jsxs(Popover, { open: popoverOpen, onOpenChange: setPopoverOpen, children: [
     jsx(PopoverTrigger, { asChild: true, children: jsxs(Button, {
       type: 'button', variant: 'ghost', size: 'sm', 'data-limits-monitor': 'statusbar',
-      'aria-label': `${t('bar.title')} · ${profile}`, title: t('bar.readOnly'),
+      'aria-label': `${t('bar.title')} · ${chipInfo.map(item => `${item.prefix} · ${item.value}`).join('; ') || profile}`,
       style: { display: 'flex', gap: 8, height: 24, maxWidth: 'min(560px, 50vw)', padding: '0 6px', overflow: 'hidden', fontSize: 11 },
-      children: [...pinned.map(row => jsx('span', { 'data-limits-account': 'chip',
-          style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color:
-            gateway === 'open' && ['low', 'exhausted', 'limited'].includes(accountSummary(row, now).kind) ? warning : 'var(--ui-text-primary)' },
-          children: `${providerOf(row)} · ${labelOf(row)} · ${headline(row)}` }, row.pin || row.key)),
+      children: [...chipInfo.map(({ node }) => node),
         !pinned.length && jsx('span', { children: query.isPending ? t('action.loading') : t('bar.empty') })]
     }) }),
     jsxs(PopoverContent, { side: 'top', align: 'end', 'aria-label': t('bar.title'),
       style: { width: 'min(400px, calc(100vw - 24px))', maxHeight: '70vh', overflowY: 'auto', padding: 12 },
       children: [
-        jsx(CurrentChatSummary, { open: popoverOpen, t }),
         jsxs('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, children: [
-          jsx('strong', { children: t('pane.heading') }),
+          jsx('span', { children: query.data ? `${t('bar.readAt')}: ${new Date(query.data.readAt).toLocaleTimeString(t('state.locale'))}` : t('bar.notRead') }),
           jsx(Button, { type: 'button', variant: 'outline', size: 'sm', disabled: query.isFetching || gateway !== 'open', onClick: refresh,
             children: query.isFetching ? t('action.loading') : t('action.refresh') })] }),
-        jsx('p', { style: subtle, children: `${t('bar.scope')}: ${profile}` }),
-        jsx('p', { style: subtle, children: t('bar.readOnly') }),
+        jsx(CurrentChatSummary, { open: popoverOpen, t }),
         gateway !== 'open' && jsx('div', { role: 'status', style: { ...subtle, color: warning }, children: t('connection.offline') }),
         query.isError && jsx('div', { role: 'status', style: { ...subtle, color: warning }, children: t('error.refresh') }),
         (query.data?.recovery?.status === 'unavailable' || query.data?.recovery?.errors > 0) &&
           jsx('p', { role: 'status', style: { ...subtle, color: warning }, children: t('error.recovery') }),
-        query.data && jsx('div', { style: subtle, children: `${t('state.readAt')}: ${new Date(query.data.readAt).toLocaleTimeString(t('state.locale'))}. ${t('state.cached')}` }),
-        jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }, children: [
-          jsx(Checkbox, { checked: prefs.maskEmails, onCheckedChange: checked => updatePreferences({ ...preferences.get(), maskEmails: checked === true }), 'aria-label': t('bar.mask') }),
-          t('bar.mask')] }),
+        jsxs('div', { style: { marginTop: 8 }, children: [
+          jsx('strong', { style: subtle, children: t('bar.display') }),
+          jsxs('div', { role: 'group', 'aria-label': t('bar.display'), style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }, children: [
+            ...[['percent', t('bar.percent')], ['graph', t('bar.graph')], ['circle', t('bar.circle')]].map(([mode, label]) => jsxs('label', { key: mode,
+              style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }, children: [
+                jsx(Checkbox, { checked: prefs.statusBarDisplay === mode, 'aria-label': label,
+                  onCheckedChange: checked => { if (checked === true) updatePreferences({ ...preferences.get(), statusBarDisplay: mode }); } }),
+                jsx('span', { children: label })
+              ] }))] })
+        ] }),
         failedSave && jsx('p', { role: 'status', style: { ...subtle, color: warning }, children: t('bar.saveError') }),
         ...rows.map(row => jsxs('section', { style: block, children: [
           jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 8 }, children: [
             jsx(Checkbox, { checked: !prefs.hidden.includes(row.pin), disabled: !row.pin,
               'aria-label': `${t('bar.pin')}: ${providerOf(row)} ${labelOf(row)}`,
               onCheckedChange: checked => { const value = preferences.get(); updatePreferences({ ...value,
-                hidden: checked === true ? value.hidden.filter(pin => pin !== row.pin) : [...value.hidden, row.pin] }); } }),
+                hidden: checked === true ? value.hidden.filter(pin => pin !== row.pin) : [row.pin, ...value.hidden.filter(pin => pin !== row.pin)] }); } }),
             jsx('strong', { children: providerOf(row) }), jsx('span', { style: subtle, children: t('bar.pin') })] }),
           jsx(AccountCard, { account: { ...row, stale: row.stale || query.isError || gateway !== 'open' }, t })]
         }, row.pin || row.key)),
         !rows.length && jsx('p', { style: subtle, children: query.isPending ? t('status.reading') : t('empty.providers') }),
-        !!prefs.hidden.length && jsx(Button, { type: 'button', variant: 'ghost', size: 'sm', style: { marginTop: 8 },
-          onClick: () => updatePreferences({ ...preferences.get(), hidden: [] }), children: t('bar.restore') })
       ] })
   ] });
 }
@@ -605,21 +626,19 @@ function LimitsPane() {
   const t = usePluginI18n(ID);
   const { query, gateway, refresh, profile, connection } = useLimitsQuery();
   const data = query.data;
-  return jsxs('div', { 'data-limits-monitor': 'pane', tabIndex: 0, 'aria-label': t('pane.heading'), style: { height: '100%', overflowY: 'auto', padding: 12,
+  return jsxs('div', { 'data-limits-monitor': 'pane', tabIndex: 0, 'aria-label': t('pane.title'), style: { height: '100%', overflowY: 'auto', padding: 12,
     boxSizing: 'border-box', fontSize: 12, color: 'var(--ui-text-primary)' }, children: [
     jsxs('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }, children: [
-      jsx('strong', { children: t('pane.heading') }),
+      jsx('span', { style: subtle, children: data ? `${t('bar.readAt')}: ${new Date(data.readAt).toLocaleTimeString(t('state.locale'))}` : t('bar.notRead') }),
       jsx(Button, { type: 'button', variant: 'outline', size: 'sm', disabled: query.isFetching || gateway !== 'open',
         onClick: refresh, children: query.isFetching ? t('action.loading') : t('action.refresh') }),
     ] }),
-    jsx('p', { style: subtle, children: t('pane.description') }),
     jsx(UsageSection, { profile, connection, gateway, t }),
     gateway !== 'open' && jsx('div', { role: 'status', style: subtle, children: t('connection.offline') }),
     query.isError && jsx('div', { role: 'alert', style: { ...subtle, color: warning }, children: t('error.refresh') }),
     (data?.recovery?.status === 'unavailable' || data?.recovery?.errors > 0) &&
       jsx('p', { role: 'status', style: subtle, children: t('error.recovery') }),
     !data && query.isPending && jsx('div', { role: 'status', style: subtle, children: gateway === 'open' ? t('status.reading') : t('status.waiting') }),
-    data && jsx('div', { style: subtle, children: `${t('state.readAt')}: ${new Date(data.readAt).toLocaleTimeString(t('state.locale'))}. ${t('state.cached')}` }),
     data?.routeFailure && jsx('div', { style: { ...subtle, color: warning }, children: t('error.routes') }),
     data?.rosterFailure && jsx('div', { style: { ...subtle, color: warning }, children: t('error.roster') }),
     data && groupAccounts(data.profiles.map(p => ({ ...p, stale: p.stale || query.isError || gateway !== 'open' })))
@@ -629,7 +648,7 @@ function LimitsPane() {
       children: `${p.label}: ${[...new Set(p.errors)].map(error => t(error)).join('; ')}` }, p.key)),
   ] });
 }
-export default { id: ID, name: 'Limits · Beta', description: 'Provider allowances, observed conversation usage and privacy controls', defaultEnabled: true, register(ctx) {
+export default { id: ID, name: 'Limits · Beta', description: 'Provider allowances and observed conversation usage', defaultEnabled: true, register(ctx) {
   ctx.i18n.register(locales);
   preferenceStorage = ctx.storage;
   recoveryRest = typeof ctx.rest === 'function' ? ctx.rest.bind(ctx) : undefined;

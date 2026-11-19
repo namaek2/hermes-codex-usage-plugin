@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-from tempfile import gettempdir
+from tempfile import TemporaryDirectory, gettempdir
 from playwright.sync_api import sync_playwright, expect
 
 URL = os.environ.get("USAGE_UI_URL", "http://127.0.0.1:5173")
@@ -19,8 +19,11 @@ def open_details_if_closed(summary):
         summary.click()
 
 with sync_playwright() as p:
-    context = p.chromium.launch_persistent_context(str(OUTPUT / "chromium-profile"), executable_path=BROWSER, headless=True)
+  with TemporaryDirectory(prefix="limits-browser-") as profile_dir:
+    context = p.chromium.launch_persistent_context(profile_dir, executable_path=BROWSER, headless=True)
     page = context.new_page()
+    page_errors = []
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
     try:
         page.goto(URL, wait_until="networkidle")
         expect(page.get_by_text("SYNTHETIC FIXTURE")).to_be_visible()
@@ -32,9 +35,9 @@ with sync_playwright() as p:
         open_details_if_closed(parent_summary)
         body = section.inner_text()
         assert "보고된 토큰 소계: 40" in body, body
-        assert "알려진 프롬프트: 30" in body and "알려진 출력: 10" in body, body
+        assert "확인된 입력 / 프롬프트 토큰: 30" in body and "확인된 출력 토큰: 10" in body, body
         assert "성공: 1" in body and "실패: 1" in body and "대기 중: 1" in body, body
-        assert "완료" in body and "미측정" in body and "요청별 계정" in body, body
+        assert "사용량 보고 완료" in body and "미측정" in body and "요청별 계정" in body, body
         assert "gpt-fixture" in body and "openai-codex" in body
         assert "synthetic-child-session" in body and "synthetic-child-request" not in body
         page.screenshot(path=str(OUTPUT / "usage-expanded.png"), full_page=True)
@@ -48,7 +51,7 @@ with sync_playwright() as p:
         page.get_by_role("button", name="사용량 새로고침").click()
         expect(section.get_by_text("보고된 토큰 소계: 40")).to_be_visible(timeout=10000)
         page.get_by_role("button", name="Profile B (empty)").click()
-        expect(section.get_by_text("관찰된 대화 사용량이 없습니다.")).to_be_visible(timeout=10000)
+        expect(section.get_by_text("관찰된 대화 사용량이 없습니다. 과거 내역을 소급 수집하지 않습니다.")).to_be_visible(timeout=10000)
         assert "synthetic-conversation-a" not in section.inner_text()
         page.get_by_role("button", name="Profile A", exact=True).click()
         expect(parent_summary).to_be_visible(timeout=10000)
@@ -83,10 +86,15 @@ with sync_playwright() as p:
         expect(status).to_be_visible()
         assert "요청" not in status.inner_text() and "토큰" not in status.inner_text()
         passed("status bar has no token leakage")
+        assert not page_errors, page_errors
     finally:
-        # Keep visual evidence even when an assertion above fails.
-        try: page.screenshot(path=str(OUTPUT / "usage-ui-final.png"), full_page=True)
+        # Keep the synthetic fixture reusable after every run, including failures.
+        try: page.evaluate("window.__usageQA.reconnect(); window.__usageQA.control({fail_usage:false, delay_ms:0})")
         except Exception: pass
-        (OUTPUT / "browser-results.json").write_text(json.dumps({"case_count": len(CASES), "cases": CASES}, ensure_ascii=False, indent=2))
+        try:
+            status.click()
+            page.screenshot(path=str(OUTPUT / "usage-ui-final.png"), full_page=True)
+        except Exception: pass
+        (OUTPUT / "browser-results.json").write_text(json.dumps({"case_count": len(CASES), "cases": CASES, "page_errors": page_errors}, ensure_ascii=False, indent=2))
         context.close()
 print(json.dumps({"case_count": len(CASES), "cases": CASES}, ensure_ascii=False))

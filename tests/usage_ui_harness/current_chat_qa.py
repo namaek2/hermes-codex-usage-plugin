@@ -26,24 +26,25 @@ with sync_playwright() as p:
         chip.click()
         summary = page.locator("[data-current-chat-usage]")
         expect(summary).to_be_visible()
-        expect(summary).to_contain_text("관찰된 요청: 3")
-        expect(summary).to_contain_text("보고된 토큰 소계: 40")
-        expect(summary).to_contain_text("알려진 프롬프트: 30")
-        expect(summary).to_contain_text("알려진 출력: 10")
+        for label, value in [("API 요청 수", "3"), ("보고된 토큰 소계", "40"),
+                             ("확인된 입력 / 프롬프트 토큰", "30"), ("확인된 출력 토큰", "10")]:
+            metric = summary.locator(f'[data-usage-metric="{label}"]')
+            expect(metric).to_be_visible()
+            expect(metric.locator("strong")).to_have_text(value)
 
         # Focus becomes temporarily absent, then resolves to a durable session.
         page.evaluate("window.__usageQA.focus('', null, null)")
-        expect(summary).to_contain_text("현재 대화 식별 정보를 확인할 수 없습니다")
+        expect(summary).to_contain_text("선택된 대화를 확인할 수 없습니다")
         page.evaluate("window.__usageQA.focus('synthetic-session-a')")
-        expect(summary).to_contain_text("관찰된 요청: 3", timeout=10000)
+        expect(summary.locator('[data-usage-metric="API 요청 수"] strong')).to_have_text("3", timeout=10000)
         assert not errors, errors
 
         # Focus ownership may differ from the pane's selected profile.
         page.evaluate("window.__usageQA.focus('synthetic-session-a', 'fixture-profile-b', 'fixture-connection-b')")
-        expect(summary).to_contain_text("관찰된 대화 사용량이 없습니다", timeout=10000)
+        expect(summary).to_contain_text("이 대화에 보고된 사용량이 아직 없습니다", timeout=10000)
         assert page.evaluate("window.__usageQA.mainScope()") == {"profile":"fixture-profile-a","connection":"fixture-connection-a"}
         page.evaluate("window.__usageQA.focus('synthetic-session-a')")
-        expect(summary).to_contain_text("관찰된 요청: 3", timeout=10000)
+        expect(summary.locator('[data-usage-metric="API 요청 수"] strong')).to_have_text("3", timeout=10000)
 
         calls = page.evaluate("window.__usageRpcCalls || []")
         assert calls and all(call.get("session_id") == "synthetic-session-a" for call in calls), calls
@@ -57,26 +58,31 @@ with sync_playwright() as p:
         calls_after_close = page.evaluate("window.__usageRpcCalls || []")
         assert len(calls_after_close) == len(calls_before_close), (calls_before_close, calls_after_close)
         page.locator('[data-limits-monitor="statusbar"]').click()
-        expect(summary).to_contain_text("보고된 토큰 소계: 40", timeout=10000)
+        expect(summary.locator('[data-usage-metric="보고된 토큰 소계"] strong')).to_have_text("40", timeout=10000)
         before_missing = len(page.evaluate("window.__usageRpcCalls || []"))
         page.evaluate("window.__usageQA.focus('', null, null)")
-        expect(summary).to_contain_text("현재 대화 식별 정보를 확인할 수 없습니다")
+        expect(summary).to_contain_text("선택된 대화를 확인할 수 없습니다")
         before_disabled = len(page.evaluate("window.__usageRpcCalls || []"))
         assert before_disabled == before_missing, (before_missing, before_disabled)
         page.evaluate("window.__usageQA.focus('synthetic-session-a')")
-        expect(summary).to_contain_text("보고된 토큰 소계: 40", timeout=10000)
+        expect(summary.locator('[data-usage-metric="보고된 토큰 소계"] strong')).to_have_text("40", timeout=10000)
         before_offline = len(page.evaluate("window.__usageRpcCalls || []"))
         page.evaluate("window.__usageQA.disconnect()")
         expect(summary).to_contain_text("Hermes 연결 중에만", timeout=5000)
         assert len(page.evaluate("window.__usageRpcCalls || []")) == before_offline
         page.evaluate("window.__usageQA.reconnect()")
         page.wait_for_function("(n) => (window.__usageRpcCalls || []).length > n", arg=before_offline)
-        expect(summary).to_contain_text("보고된 토큰 소계: 40", timeout=10000)
+        expect(summary.locator('[data-usage-metric="보고된 토큰 소계"] strong')).to_have_text("40", timeout=10000)
         after = page.evaluate("window.__usageRpcCalls || []")
         assert len(after) > before_offline, (before_offline, after)
         assert len(calls_after_close) > 0
         assert not errors, errors
         print(json.dumps({"passed": ["real Radix popover and filtered totals", "focus ID transition", "owner route isolation", "closed/offline/unknown owner do not query"]}, ensure_ascii=False))
     finally:
-        page.screenshot(path=str(OUT / "current-chat-final.png"), full_page=True)
+        try:
+            page.evaluate("window.__usageQA.reconnect(); window.__usageQA.control({fail_usage:false, delay_ms:0})")
+        except Exception:
+            pass
+        try: page.screenshot(path=str(OUT / "current-chat-final.png"), full_page=True)
+        except Exception: pass
         browser.close()

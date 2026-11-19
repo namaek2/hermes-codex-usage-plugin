@@ -10,7 +10,7 @@ PROFILES = ("fixture-profile-a", "fixture-profile-b")
 CONNECTIONS = {PROFILES[0]: "fixture-connection-a", PROFILES[1]: "fixture-connection-b"}
 SYNTHETIC_SESSIONS = frozenset(("synthetic-session-a", "synthetic-child-session"))
 LOCK = threading.RLock()
-CONTROL = {"delay_ms": 0, "fail_usage": False}
+CONTROL = {"delay_ms": 0, "fail_usage": False, "fail_catalog": False}
 DATA_ROOT = Path(os.environ["HERMES_HOME"])
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 ROOT = Path(tempfile.mkdtemp(prefix="usage-ui-", dir=DATA_ROOT))
@@ -140,17 +140,23 @@ class Handler(BaseHTTPRequestHandler):
         except Exception: return self.send_json(400, {"error": "invalid json"})
         if self.path == "/control":
             with LOCK:
-                CONTROL.update({key: body[key] for key in ("delay_ms", "fail_usage") if key in body})
+                CONTROL.update({key: body[key] for key in ("delay_ms", "fail_usage", "fail_catalog") if key in body})
             return self.send_json(200, {"ok": True, "control": CONTROL})
         if self.path != "/rpc": return self.send_json(404, {"error": "not found"})
         profile, connection = body.get("profile"), body.get("connection")
         if profile not in PROFILES or CONNECTIONS[profile] != connection:
             return self.send_json(403, {"error": "fixture profile/connection mismatch"})
         method, params = body.get("method"), body.get("params") or {}
-        if method == "profiles.list": return self.send_json(200, {"profiles": [{"name": profile}]})
-        if method == "model.options": return self.send_json(200, {"providers": []})
-        if method != "plugin.limits-monitor.usage.list": return self.send_json(404, {"error": "unknown fixture RPC"})
         with LOCK: control = dict(CONTROL)
+        if method == "profiles.list": return self.send_json(200, {"profiles": [{"name": profile}]})
+        if method == "model.options":
+            if control["fail_catalog"]: return self.send_json(503, {"error": "synthetic catalog failure"})
+            return self.send_json(200, {"providers": [{"slug":"openai-codex", "name":"Synthetic Codex", "authenticated":True,
+                "usage":{"accounts":[
+                    {"id":"synthetic-account-email", "label":"synthetic.user@example.invalid", "state":"ready", "windows":[{"label":"Weekly", "used_percent":20, "scope":"account"}]},
+                    {"id":"synthetic-account-zero", "label":"Synthetic zero", "state":"ready", "windows":[{"label":"Weekly", "used_percent":100, "scope":"account"}]}
+                ]}}]})
+        if method != "plugin.limits-monitor.usage.list": return self.send_json(404, {"error": "unknown fixture RPC"})
         if control["delay_ms"]: time.sleep(min(10, control["delay_ms"] / 1000))
         if control["fail_usage"]: return self.send_json(503, {"error": "synthetic fixture query failure"})
         try:
